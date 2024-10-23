@@ -1,0 +1,73 @@
+Month,Year,Product Category,Sales Amount,Units Sold,Customer Rating
+January,2022,Electronics,15476,78,1.1
+January,2022,Clothing,9506,112,1.9
+January,2022,Home Goods,17066,76,3.7
+February,2022,Electronics,19617,189,1.3
+February,2022,Clothing,11912,58,1.1
+February,2022,Home Goods,8582,109,3.0
+March,2022,Electronics,5434,193,1.8
+March,2022,Clothing,15647,229,3.2
+March,2022,Home Goods,8611,164,3.4
+April,2022,Electronics,18261,272,1.0
+April,2022,Clothing,18202,90,3.8
+April,2022,Home Goods,10574,121,1.6
+May,2022,Electronics,17509,136,1.4
+May,2022,Clothing,11224,74,2.4
+May,2022,Home Goods,10635,204,2.1
+June,2022,Electronics,5711,236,2.8
+June,2022,Clothing,7045,299,4.7
+June,2022,Home Goods,6291,191,2.2
+July,2022,Electronics,15299,208,4.5
+July,2022,Clothing,10925,197,1.8
+July,2022,Home Goods,6139,61,3.6
+August,2022,Electronics,17665,124,4.9
+August,2022,Clothing,19013,109,4.5
+August,2022,Home Goods,11227,121,2.8
+September,2022,Electronics,18666,143,1.7
+September,2022,Clothing,10820,103,3.7
+September,2022,Home Goods,16498,289,3.7
+October,2022,Electronics,6169,205,3.5
+October,2022,Clothing,13751,236,2.0
+October,2022,Home Goods,12573,147,2.1
+November,2022,Electronics,15485,226,3.2
+November,2022,Clothing,16216,133,4.4
+November,2022,Home Goods,17713,64,1.9
+December,2022,Electronics,5525,256,2.3
+December,2022,Clothing,9386,66,1.8
+December,2022,Home Goods,14292,274,3.9
+January,2023,Electronics,8483,217,3.0
+January,2023,Clothing,19494,284,3.6
+January,2023,Home Goods,7340,117,1.6
+February,2023,Electronics,17205,193,3.2
+February,2023,Clothing,17239,199,2.7
+February,2023,Home Goods,14560,152,2.4
+March,2023,Electronics,7266,180,3.0
+March,2023,Clothing,17382,62,4.4
+March,2023,Home Goods,7504,210,1.6
+April,2023,Electronics,16149,158,3.4
+April,2023,Clothing,11304,147,3.4
+April,2023,Home Goods,12668,185,2.0
+May,2023,Electronics,14064,270,4.8
+May,2023,Clothing,16145,234,1.5
+May,2023,Home Goods,19496,187,4.0
+June,2023,Electronics,17592,214,2.4
+June,2023,Clothing,9808,161,1.6
+June,2023,Home Goods,5053,294,3.9
+July,2023,Electronics,16791,117,4.9
+July,2023,Clothing,17483,95,3.0
+July,2023,Home Goods,6743,272,3.5
+August,2023,Electronics,18789,213,3.0
+August,2023,Clothing,8258,89,2.5
+August,2023,Home Goods,7646,188,4.8
+September,2023,Electronics,13689,285,1.0
+September,2023,Clothing,10310,175,1.1
+September,2023,Home Goods,10947,274,4.9
+October,2023,Electronics,18218,128,2.0
+October,2023,Clothing,8946,274,3.3
+October,2023,Home Goods,6290,71,3.9
+November,2023,Electronics,18369,67,4.9
+November,2023,Clothing,13727,246,1.5
+November,2023,Home Goods,15809,171,4.8
+December,2023,Electronics,7705,117,3.1
+December,2023,Clothing,14938,158,4.9
+December,2023,Home Goods,13835,243,3.9
