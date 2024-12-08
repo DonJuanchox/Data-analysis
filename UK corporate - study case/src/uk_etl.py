@@ -27,10 +27,10 @@ officers_owners: pl_df = etl_tools.load_file(
 
 # # Write parquet
 etl_tools.write_parquet(
-    logger, companies, companies_data.with_suffix('.parquet'), compression_level=11)
+    logger, companies, companies_data.with_suffix('.parquet'), compression_level=22)
 etl_tools.write_parquet(
-    logger, filings, filings_data.with_suffix('.parquet'), compression_level=11)
+    logger, filings, filings_data.with_suffix('.parquet'), compression_level=22)
 etl_tools.write_parquet(logger, officers_owners, officers_owners_data.with_suffix(
-    '.parquet'), compression_level=11)
+    '.parquet'), compression_level=22)
 
 #  REMOVE .FILES
