@@ -19,7 +19,7 @@ from countries import world_countries
 # Process companies dataframe
 def process_companies_data(companies):
     """
-    Processes the companies dataframe by adding new calculated columns and refining city information.
+    Process the companies dataframe by adding new calculated columns and refining city information.
 
     Args:
         companies (DataFrame): The input companies dataframe.
@@ -48,7 +48,7 @@ def process_companies_data(companies):
 # Process officers_owners dataframe
 def process_officers_owners_data(officers_owners, world_countries):
     """
-    Processes the officers_owners dataframe by refining country information and applying optimized functions.
+    Process the officers_owners dataframe by refining country information and applying optimized functions.
 
     Args:
         officers_owners (DataFrame): The input officers_owners dataframe.
@@ -623,7 +623,7 @@ html_template = f"""
 """
 
 # Save to HTML file
-html_file = "uk_exploration.html"
+html_file = pathlib.Path(r"C:\Users\juann\OneDrive\Documentos\GitHub\Data-analysis\docs\UK Corporate - Study.html")
 with open(html_file, "w") as file:
     file.write(html_template)
 print(f"The updated HTML file with all charts has been saved as: {html_file}")
