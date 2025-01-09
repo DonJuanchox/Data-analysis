@@ -1,199 +1,108 @@
 """
-UK Corporate Analysis Dashboard Generator.
-
-This module performs a comprehensive analysis and visualization of UK corporate data,
-including companies, officers, and owners.
-It leverages ETL tools for data extraction, transformation, and loading, and creates interactive visualizations using Plotly. The final output is a standalone HTML dashboard that summarizes key insights into corporate data.
-
-Key Features:
--------------
-1. **ETL Operations**:
-    - Loads and processes large datasets of companies and officers/owners using Polars and Pandas.
-    - Handles data filtering, transformation, and preparation for visualization.
-
-2. **Data Wrangling**:
-    - Processes datasets to compute derived metrics such as the number of days active, years brackets, and grouped distributions.
-    - Cleans and normalizes address fields, officer roles, and nationalities for consistency.
-
-3. **Interactive Visualizations**:
-    - Generates a variety of charts, including:
-        - Pie charts for distributions (e.g., city-wise companies, ownership, and nationality).
-        - Bar charts for comparisons (e.g., officer roles, active/inactive companies).
-        - Toggleable charts for multi-view comparisons (e.g., active vs. inactive companies by city or type).
-
-4. **Dashboard Creation**:
-    - Assembles all visualizations into an interactive HTML dashboard.
-    - Utilizes Bootstrap for styling and responsiveness.
-    - Includes a well-structured layout with separate sections for companies, officers, and nationality analysis.
-
-Future Improvements:
----------------------
-- Replace hardcoded file paths with configuration files or dynamic inputs.
-- Optimize performance by consolidating repetitive operations and queries.
-- Add detailed tooltips and interactivity to visualizations for enhanced usability.
-- Implement unit tests for key functions to ensure robustness.
-TODO> Clean code, optimize code, type hints
+TODO> Clean code, rename variables, more sections, optimize code, type hints
+Use replace instead of .loc
 """
-import typing
-import pathlib
-import logging
 import etl_tools
+import pathlib
+import etl_logger
+import logging
 import polars as pl
 import pandas as pd
 import datetime as dt
 from datetime import datetime
-
-import etl_logger
-import wrangle
-from re import compile
+import uk_wrangle
+import re
 import data_visualize as viz
 from countries import world_countries
 
 
-def create_html_file(logger: logging.Logger,
-                     path: pathlib.Path,
-                     html_content: str
-                     ) -> None:
+# Process companies dataframe
+def process_companies_data(companies):
     """
-    Create an HTML file at the specified path.
+    Process the companies dataframe by adding new calculated columns and refining city information.
 
-    Parameters
-    ----------
-    logger : logging.Logger
-        Logger instance for logging events.
-    path : pathlib.Path
-        Path to save the HTML file.
-    html_content : str
-        The HTML content to write to the file.
+    Args:
+        companies (DataFrame): The input companies dataframe.
 
-    Returns
-    -------
-    None
+    Returns:
+        DataFrame: The processed companies dataframe.
     """
-    try:
-        with open(path, "w") as file:
-            file.write(html_content)
-        logger.info(f"HTML file saved successfully: {path}")
-    except Exception as e:
-        logger.error(f"Failed to create HTML file: {e}")
-
-
-def normalize_nationality(row: pd.Series,
-                          country_dict: typing.Dict[str, str]
-                          ) -> typing.Optional[str]:
-    """
-    Normalize and map a nationality string to a country using a predefined dictionary.
-
-    Parameters
-    ----------
-    row : pd.Series
-        The nationality data to process.
-    country_dict : Dict[str, str]
-        Mapping of normalized nationalities to countries.
-
-    Returns
-    -------
-    str or None
-        Mapped country name or None.
-    """
-    pattern = compile(r'[+;/,()&-]')
-    normalized_value = pattern.split(row)[0].strip().lower()
-    return country_dict.get(normalized_value, None)
-
-
-def process_companies_data(logger: logging.Logger,
-                           companies: pd.DataFrame,
-                           english_countries: typing.List
-                           ) -> pd.DataFrame:
-    """
-    Process and refine company data.
-
-    Parameters
-    ----------
-    logger : logging.Logger
-        Logger instance.
-    companies : pd.DataFrame
-        Company data.
-    english_countries : list
-        List of English-speaking countries.
-
-    Returns
-    -------
-    pd.DataFrame
-        Processed DataFrame.
-    """
+    # Add calculated columns
     companies = companies.assign(
-        Year=lambda df: df['incorporation_date'].apply(wrangle.get_year),
+        Year=lambda df: df['incorporation_date'].apply(uk_wrangle.get_year),
         city=lambda df: df['office_address'].apply(
-            lambda addr: wrangle.process_address(addr, logger)),
+            lambda address: uk_wrangle.process_address(address, logger)),
         num_days_active=lambda df: df.apply(
-            lambda row: wrangle.days_between_dates(row, logger), axis=1),
-        Years_bracket=lambda df: pd.cut(
-            df['num_days_active'],
-            bins=[0, 360, 1800, 3600, 7200, float('inf')],
-            labels=['<1', '1-5y', '5-10y', '10-20y', '>20y']
-        )
-    )
-    companies.loc[companies['city'].isin(english_countries), 'city'] = companies.loc[companies['city'].isin(english_countries), 'office_address'].apply(
-        lambda address: wrangle.process_country(address, logger))
+            lambda row: uk_wrangle.days_between_dates(row, logger), axis=1),
+        Years_bracket=lambda df: pd.cut(df['num_days_active'],
+                                        bins=[0, 360, 1800, 3600,
+                                              7200, float('inf')],
+                                        labels=['<1', '1-5y', '5-10y', '10-20y', '>20y']))
+    # Refine city and country extraction
+    companies.loc[companies['city'].isin(ENGLISH_COUNTRIES), 'city'] = companies.loc[companies['city'].isin(ENGLISH_COUNTRIES), 'office_address'].apply(
+        lambda address: uk_wrangle.process_country(address, logger))
+
     return companies
 
 
-def process_officers_owners_data(officers_owners: pd.DataFrame,
-                                 world_countries: typing.Dict,
-                                 english_countries: typing.List
-                                 ) -> pd.DataFrame:
+# Process officers_owners dataframe
+def process_officers_owners_data(officers_owners, world_countries):
     """
-    Process officer and owner data.
+    Process the officers_owners dataframe by refining country information and applying optimized functions.
 
-    Parameters
-    ----------
-    officers_owners : pd.DataFrame
-        Officer and owner data.
-    world_countries : dict
-        Mapping of world countries.
-    english_countries : list
-        List of English-speaking countries.
+    Args:
+        officers_owners (DataFrame): The input officers_owners dataframe.
+        world_countries (dict): Dictionary mapping normalized country names to full names.
 
-    Returns
-    -------
-    pd.DataFrame
-        Processed DataFrame.
+    Returns:
+        DataFrame: The processed officers_owners dataframe.
     """
-    officers_owners['country_of_residence'] = officers_owners['country_of_residence'].replace(
-        english_countries, 'United Kingdom')
-    officers_owners['nationality'] = officers_owners['nationality'].map(
-        lambda row: normalize_nationality(row, world_countries))
+    officers_owners.loc[officers_owners['country_of_residence'].isin(
+        ENGLISH_COUNTRIES), 'country_of_residence'] = 'United Kingdom'
+
+    # Apply the optimized function to the 'nationality' column
+    officers_owners['nationality'] = officers_owners['nationality'].apply(
+        lambda row: split_nationality_optimized(row, country_dict=WORLD_COUNTIES))
     return officers_owners
 
 
-def prepare_grouped_data(df: pd.DataFrame,
-                         group_by_column: str,
-                         top_n: int = None
-                         ) -> pd.DataFrame:
+def split_nationality_optimized(row, country_dict):
     """
-    Group, count, and sort data.
+    Extracts and normalizes the nationality from the input row using a precompiled regex pattern.
+    Returns the corresponding country from the provided dictionary or None if not found.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input DataFrame.
-    group_by_column : str
-        Column to group by.
-    top_n : int, optional
-        Number of top rows to keep.
+    Args:
+    row (str): Input string containing the nationality information.
+    a_dict (dict): Dictionary mapping normalized values to countries.
 
-    Returns
-    -------
-    pd.DataFrame
-        Grouped and sorted DataFrame.
+    Returns:
+    str or None: Matching country or None if no match is found.
     """
-    # Observed use to silence warning
+    # Compile the regex pattern once (compile at the top if reused globally)
+    pattern = re.compile(r'[+;/,()&-]')
+    # Split on delimiters, normalize case, and strip spaces
+    normalized_value = pattern.split(row)[0].strip().lower()
+    # Return the matching country or None
+    return country_dict.get(normalized_value)
+
+
+def prepare_grouped_data(data, group_by_column, top_n=None):
+    """
+    Groups data by a specified column, counts the occurrences, sorts by size, and optionally limits to top N results.
+
+    Parameters:
+    - data (pd.DataFrame): Input DataFrame.
+    - group_by_column (str): Column to group by.
+    - top_n (int, optional): Number of top results to return. If None, return all rows.
+
+    Returns:
+    - pd.DataFrame: Grouped and sorted data.
+    """
     grouped_data = (
-        df.groupby([group_by_column], as_index=False, observed=True)
-          .size()
-          .sort_values('size', ascending=False)
-          .reset_index(drop=True)
+        data.groupby([group_by_column], as_index=False)
+        .size()
+        .sort_values('size', ascending=False)
+        .reset_index(drop=True)
     )
     if top_n:
         grouped_data = grouped_data.head(top_n)
@@ -218,9 +127,12 @@ This section includes:
    - ENGLISH_COUNTRIES: List of English-speaking countries to be used for filtering or validation.
    - WORLD_COUNTIES: Flattened dictionary mapping normalized country names to their full names.
 """
-BASE_PATH = pathlib.Path(__file__).resolve().parent.parent
-COMPANIES_DATA_PATH = BASE_PATH / 'data' / 'companies.parquet'
-OFFICERS_OWNERS_DATA_PATH = BASE_PATH / 'data' / 'officers_and_owners.parquet'
+# pathlib.Path(__file__).parent.resolve()
+# DATA_PATH = BASE_PATH / 'data'
+BASE_PATH = pathlib.Path(
+    r'C:\Users\juann\OneDrive\Documentos\GitHub\Data-analysis\UK corporate - study case\data')
+COMPANIES_DATA_PATH = BASE_PATH / 'companies.parquet'
+OFFICERS_OWNERS_DATA_PATH = BASE_PATH / 'officers_and_owners.parquet'
 
 # Get logger
 console = logging.StreamHandler()
@@ -238,7 +150,6 @@ ENGLISH_COUNTRIES = ['England', 'United Kingdom', 'Wales', 'Ireland',
 WORLD_COUNTIES = {val.lower(): country  # Normalize case
                   for country, values in world_countries.items()
                   for val in (values if isinstance(values, list) else [values])}
-ACTIVE_OPEN_LST = ['Active', 'Open']
 """
 Load and Process Data: Explain the use of Polars and Pandas, and improve efficiency and error handling.
 
@@ -292,7 +203,6 @@ This section performs the following steps:
 1. **Data Processing**:
    - Applies custom processing functions (`process_companies_data` and `process_officers_owners_data`) to clean and transform the `companies` and `officers_owners` datasets.
    - The `WORLD_COUNTIES` dictionary is passed to `process_officers_owners_data` for consistent normalization of country names.
-   - The `ENGLISH_COUNTRIES` dictionary is passed to `process_officers_owners_data` and 'process_companies_data' for consistent normalization of country names.
 
 2. **Splitting Active and Inactive Companies**:
    - Splits the `companies` dataset into `active_companies` and `not_active_companies` based on the `company_status` column.
@@ -308,15 +218,12 @@ Future Improvements:
 - Consider handling edge cases where `company_status` values are missing or undefined.
 """
 # Apply processing functions
-companies = process_companies_data(logger, companies, ENGLISH_COUNTRIES)
-officers_owners = process_officers_owners_data(officers_owners,
-                                               WORLD_COUNTIES,
-                                               ENGLISH_COUNTRIES)
+companies = process_companies_data(companies)
+officers_owners = process_officers_owners_data(officers_owners, WORLD_COUNTIES)
 
 # Split active and inactive companies
-active_companies = companies.query("company_status in @ACTIVE_OPEN_LST")
-not_active_companies = companies.query(
-    "company_status not in @ACTIVE_OPEN_LST")
+active_companies = companies[companies['company_status'].isin(['Active', 'Open'])]
+not_active_companies = companies[~companies['company_status'].isin(['Active', 'Open'])]
 
 """
 Create DataFrame Visualizations: Generate and transform data for visualization.
@@ -377,74 +284,71 @@ not_active_city = prepare_grouped_data(not_active_companies, 'city', top_n=50)
 not_active_company = prepare_grouped_data(not_active_companies, 'company_type')
 not_active_years = prepare_grouped_data(not_active_companies, 'Years_bracket')
 
-# Get Officer roles overview
+# Get Officer roles
 officer_roles_df = prepare_grouped_data(officers_owners, 'officer_role')\
-    .sort_values('size', ascending=False)\
-    .assign(oficcer_role=lambda df: df['officer_role'].replace('', 'Unknown'))
+    .sort_values('size', ascending=False)
 
-# Get occupations overview
+officer_roles_df.loc[officer_roles_df['officer_role']
+                     == '', 'officer_role'] = 'Unknown'
+# Get occupations
 occupations_df = prepare_grouped_data(officers_owners, 'occupation')\
     .query("size > 5 and occupation != ''")\
     .sort_values('size', ascending=False)\
     .reset_index(drop=True)\
-    .assign(occupation=lambda df: df['occupation']
-            .replace('none', 'Unknown').str.title())
+    .assign(occupation=lambda df: df['occupation'].replace('none', 'Unknown').str.title())
 
 occupations_df = viz.label_top_rows(occupations_df, 'occupation', top_n=10)\
     .groupby('occupation', as_index=False).agg({'size': 'sum'})
 
-# Get Owners overview
+# Owners overview
 owners_df = prepare_grouped_data(officers_owners, 'is_owner')
 owners_officer_roles = prepare_grouped_data(officers_owners.query("is_owner == True"), 'officer_role')\
     .sort_values('size', ascending=False)
 
-# Get Nationality overview
+# -- Nationality distribution
 nationality_df = prepare_grouped_data(officers_owners, 'nationality')
 nationality_df = viz.label_top_rows(nationality_df, 'nationality', top_n=20).groupby(
     'nationality', as_index=False).agg({'size': 'sum'})
 nationality_excl_uk = nationality_df.query("nationality !='United Kingdom'")
 
-# Get Residence and Nationality overview
+# Residence vs nationality
 country_residence_df = officers_owners.groupby(['country_of_residence', 'nationality'], as_index=False).size()\
-    .query("size > 1000 and country_of_residence != '' and nationality != ''")\
+    .loc[lambda x: (x.country_of_residence != '')]\
+    .loc[lambda x: x.nationality != '']\
+    .query('size > 1000')\
     .sort_values('size', ascending=False)\
     .reset_index(drop=True)
 
-# Get individuals whose residence is in the UK but do not have UK nationality
-uk_residence_df = country_residence_df.query(
-    "nationality != 'United Kingdom' and country_of_residence == 'United Kingdom'")\
+# Residence UK but not uk nationality
+uk_residence_df = country_residence_df.query("nationality != 'United Kingdom' and country_of_residence == 'United Kingdom'")\
     .reset_index(drop=True)
-# Get individuals whose nationality is  form the UK but are living abroad
-uk_nationality = country_residence_df.query(
-    "nationality == 'United Kingdom' and country_of_residence != 'United Kingdom'")\
+# UK nationality living abroad
+uk_nationality = country_residence_df.query("nationality == 'United Kingdom' and country_of_residence != 'United Kingdom'")\
     .reset_index(drop=True)
 
-# Get distribution of owner and nationality
+# Distribution owner and nationality
 owners_nationality = prepare_grouped_data(officers_owners.query("is_owner == True"), 'nationality')\
     .sort_values('size', ascending=False)
 owners_nationality = viz.label_top_rows(owners_nationality, 'nationality', top_n=10)\
     .groupby('nationality', as_index=False).agg({'size': 'sum'})
 
-# Get distribution of owner and nationality excl UK
-owners_nationality_excl_uk = prepare_grouped_data(officers_owners.query(
-    "is_owner == True and nationality != 'United Kingdom'"), 'nationality')\
+owners_nationality_excl_uk = prepare_grouped_data(officers_owners.query("is_owner == True and nationality != 'United Kingdom'"), 'nationality')\
     .sort_values('size', ascending=False)
 owners_nationality_excl_uk = viz.label_top_rows(owners_nationality_excl_uk, 'nationality', top_n=20)\
     .groupby('nationality', as_index=False).agg({'size': 'sum'})
 
-# Get distribution of non-owner and nationality
+
 non_owners_nationality = prepare_grouped_data(officers_owners.query(
     "is_owner == False"), 'nationality').sort_values('size', ascending=False)
 non_owners_nationality = viz.label_top_rows(owners_nationality, 'nationality', top_n=10)\
     .groupby('nationality', as_index=False).agg({'size': 'sum'})
 
-# Get distribution of non-owner and nationality excl UK
 non_owners_nationality_excl_uk = prepare_grouped_data(officers_owners.query(
     "is_owner == False and nationality != 'United Kingdom'"), 'nationality').sort_values('size', ascending=False).sort_values('size', ascending=False)
 non_owners_nationality_excl_uk = viz.label_top_rows(owners_nationality_excl_uk, 'nationality', top_n=20)\
     .groupby('nationality', as_index=False).agg({'size': 'sum'})
 
-# Occupation for Owners whose nationality is UK and are living in the UK
+# Occupation for Owners whose nationality is UK and live in the UK
 uk_owners_and_residents_ocuppation = prepare_grouped_data(officers_owners.query("is_owner == True and nationality == 'United Kingdom' and country_of_residence == 'United Kingdom'"), 'occupation')\
     .sort_values('size', ascending=False).head(50)
 uk_owners_and_residents_ocuppation = viz.label_top_rows(
@@ -495,12 +399,12 @@ This section creates a series of visualizations to explore and summarize the pro
 - Add interactivity to all visualizations, such as hover effects and drill-down capabilities.
 - Automate labeling for toggleable charts based on input data attributes.
 """
-# ---------------- Visualize data from the "Companies" dataset ----------------
+# -- Companies data --
 cities_viz = viz.create_toggleable_pie_charts([active_city, not_active_city],
                                               ['city', 'city'],
                                               ['size', 'size'],
-                                              ['Active Companies by City', 'Not Active Companies by City'])\
-    .to_html(full_html=False, include_plotlyjs=False)
+                                              ['Active Companies by City', 'Not Active Companies by City'])
+
 company_type_viz = viz.create_toggleable_bar_charts([active_company, not_active_company],
                                                     ['company_type',
                                                         'company_type'],
@@ -508,39 +412,33 @@ company_type_viz = viz.create_toggleable_bar_charts([active_company, not_active_
                                                     ['Active Companies by Type',
                                                         'Not Active Companies by Type'],
                                                     width=1000,
-                                                    height=1200)\
-    .to_html(full_html=False, include_plotlyjs=False)
+                                                    height=1200)
 years_viz = viz.create_toggleable_pie_charts([active_years, not_active_years],
                                              ['Years_bracket', 'Years_bracket'],
                                              ['size', 'size'],
-                                             ['Active Companies by Years Bracket', 'Not Active Companies by Years Bracket'])\
-    .to_html(full_html=False, include_plotlyjs=False)
-
-# ----------- Visualize data from the "Officers and Owners" dataset -----------
+                                             ['Active Companies by Years Bracket', 'Not Active Companies by Years Bracket'])
+# -- Officers data --
 officer_roles_viz = viz.create_bar_chart(
-    officer_roles_df, 'officer_role', 'size', 'Officer Roles Overview')\
-    .to_html(full_html=False, include_plotlyjs=False)
+    officer_roles_df, 'officer_role', 'size', 'Officer Roles Overview')
 occupation_viz = viz.create_pie_chart(
-    occupations_df, "occupation", "size", "Occupation Overview")\
-    .to_html(full_html=False, include_plotlyjs=False)
+    occupations_df, "occupation", "size", "Occupation Overview")
 owners_viz = viz.create_toggleable_pie_charts([owners_df, owners_officer_roles],
                                               ['is_owner', 'officer_role'],
                                               ['size', 'size'],
-                                              ['Is Owner', 'Owner Ofiicer Role'])\
-    .to_html(full_html=False, include_plotlyjs=False)
+                                              ['Is Owner', 'Owner Ofiicer Role'])
 nationality_viz = viz.create_toggleable_bar_charts(
     [nationality_df, nationality_excl_uk],
     ['nationality', 'nationality'],
     ['size', 'size'],
-    ['Nationality Overview', 'Nationality Overview (excl UK)'])\
-    .to_html(full_html=False, include_plotlyjs=False)
+    ['Nationality Overview', 'Nationality Overview (excl UK)']
+)
 
 residence_nationality_viz = viz.create_toggleable_bar_charts(
     [uk_residence_df, uk_nationality],
     ['nationality', 'country_of_residence'],
     ['size', 'size'],
-    ['UK Residence (excl British)', 'UK Nationality (not UK resident)'])\
-    .to_html(full_html=False, include_plotlyjs=False)
+    ['UK Residence (excl British)', 'UK Nationality (not UK resident)']
+)
 
 owners_and_non_owners_viz = viz.create_toggleable_pie_charts(
     [owners_nationality, owners_nationality_excl_uk,
@@ -548,11 +446,64 @@ owners_and_non_owners_viz = viz.create_toggleable_pie_charts(
     ['nationality', 'nationality', 'nationality', 'nationality'],
     ['size', 'size', 'size', 'size'],
     ['Owners Nationality',
-        'Owners Nationality (Excl UK)', 'Non Owners Nationality', 'Non Owners Nationality (Excl UK)'])\
-    .to_html(full_html=False, include_plotlyjs=False)
+        'Owners Nationality (Excl UK)', 'Non Owners Nationality', 'Non Owners Nationality (Excl UK)']
+)
 uk_owners_and_residents_ocuppation_viz = viz.create_pie_chart(
-    uk_owners_and_residents_ocuppation, "occupation", "size", "Occupation for UK nationals who reside in the UK")\
-    .to_html(full_html=False, include_plotlyjs=False)
+    uk_owners_and_residents_ocuppation, "occupation", "size", "Occupation for UK nationals who reside in the UK")
+"""
+Save Charts as HTML Components: Export visualizations for embedding.
+
+This section saves each generated chart as an HTML component, allowing the charts to be embedded in web pages or combined into dashboards.
+
+**Key Steps**:
+1. **Export Individual Charts**:
+   - Each chart is converted to an HTML string using the `to_html` method of the visualization object.
+   - The `full_html=False` parameter ensures the output contains only the chart-specific HTML, without a full HTML document wrapper.
+   - The `include_plotlyjs=False` parameter excludes Plotly.js scripts, which can be included separately to optimize loading when embedding multiple charts.
+
+2. **Charts Exported**:
+   - `cities_html`: Toggleable pie charts for active and not active companies by city.
+   - `company_type_html`: Toggleable bar charts for active and not active companies by type.
+   - `years_html`: Toggleable pie charts for active and not active companies by years bracket.
+   - `officer_roles_html`: Bar chart summarizing officer roles.
+   - `occupation_html`: Pie chart showing top occupations with aggregated "Other."
+   - `owners_html`: Toggleable pie charts for ownership status and owner officer roles.
+   - `nationality_html`: Toggleable bar charts for nationality overview (with and without UK nationals).
+   - `residence_nationality_html`: Toggleable bar charts for:
+       - Non-UK nationals residing in the UK.
+       - UK nationals residing abroad.
+   - `owners_and_non_owners_html`: Toggleable pie charts showing owners' and non-owners' nationality (with and without UK nationals).
+   - `uk_owners_and_residents_ocuppation_html`: Pie chart for top occupations among UK nationals residing in the UK.
+
+**Usage**:
+- These HTML components can be embedded into static HTML files, dynamic dashboards, or web applications.
+
+**Future Improvements**:
+- Automate the naming of HTML variables based on the chart titles or types.
+- Integrate a batch-saving mechanism to save all charts as separate HTML files in a specified directory.
+- Explore additional export formats (e.g., PNG, PDF) for non-web-based use cases.
+"""
+# Save individual charts as HTML components
+cities_html = cities_viz.to_html(full_html=False, include_plotlyjs=False)
+company_type_html = company_type_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+years_html = years_viz.to_html(full_html=False, include_plotlyjs=False)
+
+# Declare HTML code
+officer_roles_html = officer_roles_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+occupation_html = occupation_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+owners_html = owners_viz.to_html(full_html=False, include_plotlyjs=False)
+nationality_html = nationality_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+residence_nationality_html = residence_nationality_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+owners_and_non_owners_html = owners_and_non_owners_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+uk_owners_and_residents_ocuppation_html = uk_owners_and_residents_ocuppation_viz.to_html(
+    full_html=False, include_plotlyjs=False)
+
 """
 Generate and Save HTML Dashboard: Create an interactive web page with visualizations.
 
@@ -623,51 +574,54 @@ html_template = f"""
         <h2 class="text-center mb-4">Active Companies</h2>
         <div class="chart-container">
             <h3 class="text-center">Cities overviews</h3>
-            <div class="chart">{cities_viz}</div>
+            <div class="chart">{cities_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Company Types</h3>
-            <div class="chart">{company_type_viz}</div>
+            <div class="chart">{company_type_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Years Bracket</h3>
-            <div class="chart">{years_viz}</div>
+            <div class="chart">{years_html}</div>
         </div>
     </div>
     <div class="container">
         <h1 class="text-center mb-5">Officer Analysis</h1>
         <div class="chart-container">
             <h3 class="text-center">Officer Roles</h3>
-            <div class="chart">{officer_roles_viz}</div>
+            <div class="chart">{officer_roles_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Occupation</h3>
-            <div class="chart">{occupation_viz}</div>
+            <div class="chart">{occupation_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Owners Overview</h3>
-            <div class="chart">{owners_viz}</div>
+            <div class="chart">{owners_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Nationality Overview</h3>
-            <div class="chart">{nationality_viz}</div>
+            <div class="chart">{nationality_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Residence and Nationality Overview</h3>
-            <div class="chart">{residence_nationality_viz}</div>
+            <div class="chart">{residence_nationality_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Owners and NonOwners Overview</h3>
-            <div class="chart">{owners_and_non_owners_viz}</div>
+            <div class="chart">{owners_and_non_owners_html}</div>
         </div>
         <div class="chart-container">
             <h3 class="text-center">Owners and Residents Overview</h3>
-            <div class="chart">{uk_owners_and_residents_ocuppation_viz}</div>
+            <div class="chart">{uk_owners_and_residents_ocuppation_html}</div>
         </div>
     </div>
 </body>
 </html>
 """
-html_file = pathlib.Path(
-    r"C:\Users\juann\OneDrive\Documentos\GitHub\Data-analysis\docs\UK Corporate - Study.html")
-create_html_file(logger, html_file, html_template)
+
+# Save to HTML file
+html_file = pathlib.Path(r"C:\Users\juann\OneDrive\Documentos\GitHub\Data-analysis\docs\UK Corporate - Study.html")
+with open(html_file, "w") as file:
+    file.write(html_template)
+print(f"The updated HTML file with all charts has been saved as: {html_file}")

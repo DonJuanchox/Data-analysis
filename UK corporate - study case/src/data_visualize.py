@@ -96,8 +96,8 @@ def create_bar_chart(df: DataFrame,
         title=title,
         labels={x_col: "Company Type", "percentage": "Percentage (%)"},
         text="percentage",
-        width=1000,
-        height=700
+        width=width,
+        height=height
     )
     fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
     return fig
